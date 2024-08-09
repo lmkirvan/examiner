@@ -1,28 +1,66 @@
-text <- pdftools::pdf_text(
-  "docs/cfpb_supervisory_highlights_issue_24_2021_06.pdf"
-  ) |> 
-  stringr::str_c(collapse = "") 
+library(purrr)
 
 sections_re <- "[0-9]{1,2}\\.[0-9]{1,2}[[:alpha:] ]+\n"
-sections <- text |> stringr::str_split(product_sections_re)
 
-volume_usc <- "([0-9]{1,2}[:space:]U[\\.]{0,1}S[\\.]{0,1}C[\\.]{0,1})"
-section_usc <- "[\\s]{0,1}[§]{0,2}[\\s]{0,1}([0-9]{4}[ \\.,]{0,1}[0-9]{0,4}[a-z0-9\\-]{0,3})"
+volume_usc_re <- "([0-9]{1,2}[:space:]U[\\.]{0,1}S[\\.]{0,1}C[\\.]{0,1})"
+section_usc_re <- "[\\s]{0,1}[§]{0,2}[\\s]{0,1}([0-9]{4}[ \\.,]{0,1}[0-9]{0,4}[a-z0-9\\-]{0,3})"
 subsections_usc <- "(\\([a-z]{0,1}\\)){0,1}(\\([0-9]{0,2}\\)){0,1}(\\([A-Z]\\)){0,1}(\\([ivx]{0,10}\\)){0,1}"
+usc_re <- paste0(volume_usc_re, section_usc_re, subsections_usc)
 
-volume_cfr <- "([0-9]{1,2}[:space:]C[\\.]{0,1}F[\\.]{0,1}R[\\.]{0,1})"
-section_cfr <- "[\\s]{0,1}[§]{0,2}[Part]{0,5}[\\,\\s]{0,1}([0-9]{4})[ \\.,]([0-9]{0,4}[a-z0-9\\-]{0,3})"
-subsections_cfr <- "(\\([a-z]{0,1}\\)){0,1}(\\([0-9]{0,2}\\)){0,1}(\\([ivx]{0,10}\\)){0,1}"
+volume_cfr_re <- "([0-9]{1,2}[:space:]C[\\.]{0,1}F[\\.]{0,1}R[\\.]{0,1})"
+section_cfr_re <- "[\\s]{0,1}[§]{0,2}[Part]{0,5}[\\,\\s]{0,1}([0-9]{4})[ \\.,]([0-9]{0,4}[a-z0-9\\-]{0,3})"
+subsections_cfr_re <- "(\\([a-z]{0,1}\\)){0,1}(\\([0-9]{0,2}\\)){0,1}(\\([ivx]{0,10}\\)){0,1}"
+cfr_re <- paste0(volume_cfr_re, section_cfr_re, subsections_cfr_re)
 
-stringr::str_match_all(text, paste0(volume_cfr, section_cfr, subsections_cfr))
+pdfs <- list.files("docs/")
 
-sections <- stringr::str_split(text, "[0-9]{1,2}\\.[0-9]{1,2}[[:alpha:] ]+\n")
+text <- map_chr(
+  paste0("docs/", pdfs) 
+  ,  \(x) {pdftools::pdf_text(x) |> stringr::str_c(collapse = "")}
+  )
 
-purrr::map(sections, \(x) stringr::str_match_all(x, paste0(volume_cfr, section_cfr, subsections_cfr))) -> temp
+text_sections <- map(text, stringr::str_split, pattern = sections_re)
+
+names(text_sections) <- pdfs |> stringr::str_remove(".pdf")
+
+cfrs <- map(
+  text_sections, \(x){
+    purrr::map(
+      x
+      , \(y) {
+        stringr::str_match_all(y, cfr_re)
+      }
+    )
+  }
+) 
+
+rows <- flatten(cfrs) |> flatten()
+text <- flatten(text_sections) |> flatten()
+lengths <- map_int(text_sections |>  flatten(), length)
+docs <- rep(x = names(text_sections), lengths)
 
 
+pmapper <- list(rows, text, docs)
 
+make_frame <- function(rows, text, docs){
+    if(length(rows) == 0){
+      rows <- array(dim = c(1,7))
+    }
+    nr <- nrow(rows)
+    array_branch(rows) |>
+      flatten_chr()  |> 
+      matrix(nrow =nr , ncol = 7, byrow = FALSE) |> 
+      data.frame() -> df
+    df$text = text
+    df$doc = docs
+    df
+  
+}
 
+result <- pmap(pmapper, make_frame) |> 
+  reduce(dplyr::bind_rows)
 
+names(result) <-c("full", "volume", "section", "dot_section", "alpha", "number", "roman", "text", "doc")
 
+table(paste0(result$section, ".", result$dot_section))
 
