@@ -1,4 +1,8 @@
+# todo maybe should the missing values be empty strings here so that we can
+# paste arbitrary columns together.
+
 library(purrr)
+library(dplyr)
 
 make_frame <- function(rows, text, docs){
   if(length(rows) == 0){
@@ -26,7 +30,7 @@ section_cfr_re <- "[\\s]{0,1}[§]{0,2}[Part]{0,5}[\\,\\s]{0,1}([0-9]{4})[ \\.,](
 subsections_cfr_re <- "(\\([a-z]{0,1}\\)){0,1}(\\([0-9]{0,2}\\)){0,1}(\\([ivx]{0,10}\\)){0,1}"
 cfr_re <- paste0(volume_cfr_re, section_cfr_re, subsections_cfr_re)
 
-pdfs <- list.files("docs/")
+pdfs <- list.files("supervision/")
 
 text <- map_chr(
   paste0("supervision/", pdfs) 
@@ -52,21 +56,22 @@ text <- flatten(text_sections) |> flatten()
 lengths <- map_int(text_sections |>  flatten(), length)
 docs <- rep(x = names(text_sections), lengths)
 
-
 pmapper <- list(rows, text, docs)
 
 result <- pmap(pmapper, make_frame) |> 
   reduce(dplyr::bind_rows)
 
-names(result) <-c("full", "volume", "section", "dot_section", "alpha", "number", "roman", "text", "doc")
-
-library(dplyr)
-
-result |> 
-  mutate(sect_dot = paste0(section,".", dot_section)) |> 
-  group_by(sect_dot) |> 
-  tally() -> temp
-
+names(result) <-c(
+  "full"
+  , "volume"
+  , "section"
+  , "sub1"
+  , "sub2"
+  , "sub3"
+  , "sub4"
+  , "text"
+  , "doc"
+  )
 
 uscs <- map(
   text_sections, \(x){
@@ -79,15 +84,42 @@ uscs <- map(
   }
 ) 
 
-rows <- flatten(cfrs) |> flatten()
-text <- flatten(text_sections) |> flatten()
-lengths <- map_int(text_sections |>  flatten(), length)
-docs <- rep(x = names(text_sections), lengths)
+rows_usc <- flatten(uscs) |> flatten()
+pmapper <- list(rows_usc, text, docs)
 
+result_usc <- pmap(pmapper, make_frame) |> 
+  reduce(dplyr::bind_rows) 
 
-pmapper <- list(rows, text, docs)
-result <- pmap(pmapper, make_frame) |> 
-  reduce(dplyr::bind_rows)
+names(result_usc) <-c(
+    "full"
+    , "volume"
+    , "section"
+    , "sub1"
+    , "sub2"
+    , "sub3"
+    , "sub4"
+    , "text"
+    , "doc"
+  )
 
+result_usc <- result_usc |> 
+  mutate(section = stringr::str_remove(section, "[ ]{0,1}and|et|\\.|,"))
 
-write.csv(result, "sup_citations.csv")
+result$source <- "CFR"
+result_usc$source <- "USC"
+
+final <- bind_rows(result, result_usc)
+
+final <- final[, c(
+  "doc"
+  , "text"
+  , "full"
+  , "volume"
+  , "section"
+  , "sub1"
+  , "sub2"
+  , "sub3"
+  , "sub4"
+ )]
+
+write.csv(result, "data/sup_citations.csv")
