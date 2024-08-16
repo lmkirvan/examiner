@@ -112,6 +112,7 @@ final <- bind_rows(result, result_usc)
 
 final <- final[, c(
   "doc"
+  , "source"
   , "text"
   , "full"
   , "volume"
@@ -122,4 +123,4 @@ final <- final[, c(
   , "sub4"
  )]
 
-write.csv(result, "data/sup_citations.csv")
+readr::write_csv(final, "data/sup_citations.csv")

@@ -1,0 +1,45 @@
+--- 
+title: "Supervision Citations"
+format: html
+editor: source
+execute: 
+  echo: false
+---
+
+## CFR versus USC
+
+```{r}
+
+library(tidyverse)
+
+df <- readr::read_csv("../data/sup_citations.csv")
+df <- df |> 
+  mutate(year =  stringr::str_match(doc, "20[0-9]{2}")[,1]) 
+
+df |> 
+  group_by(source, year) |> 
+  tally() |>  
+  filter(!is.na(year)) |> 
+  ggplot(aes(year, n, colour = source, group = source)) +
+  geom_line()
+
+```
+
+There are `r length(unique(df$full))` unique statues cited. 
+
+#### Unique citations per year. 
+
+```{r}
+
+df |> 
+  summarise(n_unique = n_distinct(full), .by = year) |> 
+  ggplot(aes(x = as.integer(year), y = n_unique)) +
+  geom_line()
+
+
+
+```
+
+top citations per year 
+
+
