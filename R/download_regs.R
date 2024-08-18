@@ -35,4 +35,24 @@ res[[page]] <- return_links(
   )  
 }
 
-res[[2]]
+single_page <- rvest::read_html(res[[1]][[1]])
+
+# get children 
+# remove expandables 
+# dowload and folder cleaned html
+# write retrieval function that works on the remaining xml 
+# just provide the full citation to get the text 
+
+nodeset <- single_page |>
+  rvest::html_node("#content__main") |> 
+  rvest::html_children() |> 
+  rvest::html_attrs()
+
+
+
+
+
+
+
+
+
