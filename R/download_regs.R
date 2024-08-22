@@ -2,7 +2,6 @@ library(httr2)
 library(rvest)
 library(purrr)
 
-
 base_url <- "https://www.consumerfinance.gov/rules-policy/regulations/"
 
 return_links <- function(site_url, .p, base_url){
@@ -46,10 +45,8 @@ single_page <- rvest::read_html(res[[1]][[1]])
 nodeset <- single_page |>
   rvest::html_node("#content__main") |> 
   rvest::html_children() |> 
-  rvest::html_attrs()
-
-
-
+  rvest::html_elements("p") |> 
+  rvest::html_attrs() 
 
 
 
