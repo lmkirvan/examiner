@@ -1,0 +1,268 @@
+--- 
+title: "title"
+format: html
+editor: source
+execute: 
+  echo: false
+---
+
+## CFR versus USC
+
+```{r}
+
+library(tidyverse)
+
+df <- bind_rows(
+  readr::read_csv("./data/sup_citations.csv")
+  , readr::read_csv("./data/enf_citations.csv")
+)
+
+df <- df |> 
+  mutate(year =  stringr::str_match(doc, "20[0-9]{2}")[ ,1]) 
+
+df |> 
+  group_by(source, year, page) |> 
+  summarise(
+    n = n()
+  ) |>  
+  filter(!is.na(year)) |> 
+  ggplot(aes(year, n, colour = source, group = source)) +
+  geom_line(linewidth = 1.05) +
+  geom_point(size = 2) +
+  facet_wrap(vars(page), scales = "free")
+
+```
+
+#### Unique citations per year. 
+
+There are `r length(unique(df$full))` unique statues cited. 
+
+```{r}
+
+df |> 
+  group_by(source, year) |> 
+  summarise(
+    n = n()
+    , n_distinct = n_distinct(full)
+  ) |>  
+  filter(!is.na(year)) |> 
+  ggplot(aes(year, n_distinct, colour = source, group = source)) +
+  geom_line(linewidth = 1.05) +
+  geom_point(size = 2)
+
+```
+
+# how to compare
+
+how well do lagged supervision citations predict enforcement citations and maybe vice versa just to check
+
+```{r}
+
+df <- df |> 
+  mutate(full = stringr::str_replace_all(full, "\n", " ")
+         , vol_sec = paste0(volume," ", section)) 
+  
+  
+sup_full <- crossing(
+  year = unique(df$year)
+  , vol_sec = unique(df$vol_sec)
+)
+
+sup_counts <- df |> 
+  filter(!is.na(year)) |> 
+  filter(!is.na(full)) |> 
+  filter(page == "sup") |> 
+  group_by(year, vol_sec) |> 
+  tally(name = "sup_count")
+
+
+sup_full <- left_join(sup_full, sup_counts)
+
+sup_full <- sup_full |> 
+  mutate(sup_count = ifelse(is.na(sup_count), 0, sup_count)
+         , sup_year = year) |> 
+  select(-year)
+
+rm(sup_counts)
+
+enf_counts <- df |> 
+  filter(!is.na(year)) |> 
+  filter(!is.na(full)) |> 
+  filter(page == "enf") |> 
+  group_by(year, vol_sec) |> 
+  tally(name = "enf_count")
+
+final <- left_join(enf_counts, sup_full, by = "vol_sec")
+
+final <- final |> 
+  mutate(
+    year = as.integer(year)
+    , sup_year = as.integer(sup_year)) |> 
+  
+  filter(sup_year <= year) |> 
+  mutate(years_before = year - sup_year) |> 
+  mutate(sup_count_scaled = sup_count - mean(sup_count) / sd(sup_count)
+         , enf_count_scaled = enf_count - mean(enf_count) / sd(enf_count)
+         , year_cnt = max(year) - year 
+         , years_before = 1 - (years_before / max(years_before)))
+
+model <- brms::brm(
+  
+  enf_count ~  (1|vol_sec)
+  , data = final
+  , family = stats::poisson()
+  , chains = 4 
+  , cores = 4
+  , iter = 2000) 
+
+
+model_sup.1 <- brms::brm(
+  enf_count ~ sup_count_scaled * years_before + (1|vol_sec)
+  , data = final
+  , family = stats::poisson()
+  , chains = 4
+  , cores = 4
+  , iter = 2000) 
+
+
+hist(final$years_before)
+
+```
+
+
+
+
+--- 
+title: "title"
+format: html
+editor: source
+execute: 
+  echo: false
+---
+
+## CFR versus USC
+
+```{r}
+
+library(tidyverse)
+
+df <- bind_rows(
+  readr::read_csv("./data/sup_citations.csv")
+  , readr::read_csv("./data/enf_citations.csv")
+)
+
+df <- df |> 
+  mutate(year =  stringr::str_match(doc, "20[0-9]{2}")[ ,1]) 
+
+df |> 
+  group_by(source, year, page) |> 
+  summarise(
+    n = n()
+  ) |>  
+  filter(!is.na(year)) |> 
+  ggplot(aes(year, n, colour = source, group = source)) +
+  geom_line(linewidth = 1.05) +
+  geom_point(size = 2) +
+  facet_wrap(vars(page), scales = "free")
+
+```
+
+#### Unique citations per year. 
+
+There are `r length(unique(df$full))` unique statues cited. 
+
+```{r}
+
+df |> 
+  group_by(source, year) |> 
+  summarise(
+    n = n()
+    , n_distinct = n_distinct(full)
+  ) |>  
+  filter(!is.na(year)) |> 
+  ggplot(aes(year, n_distinct, colour = source, group = source)) +
+  geom_line(linewidth = 1.05) +
+  geom_point(size = 2)
+
+```
+
+# how to compare
+
+how well do lagged supervision citations predict enforcement citations and maybe vice versa just to check
+
+```{r}
+
+df <- df |> 
+  mutate(full = stringr::str_replace_all(full, "\n", " ")
+         , vol_sec = paste0(volume," ", section)) 
+  
+  
+sup_full <- crossing(
+  year = unique(df$year)
+  , vol_sec = unique(df$vol_sec)
+)
+
+sup_counts <- df |> 
+  filter(!is.na(year)) |> 
+  filter(!is.na(full)) |> 
+  filter(page == "sup") |> 
+  group_by(year, vol_sec) |> 
+  tally(name = "sup_count")
+
+
+sup_full <- left_join(sup_full, sup_counts)
+
+sup_full <- sup_full |> 
+  mutate(sup_count = ifelse(is.na(sup_count), 0, sup_count)
+         , sup_year = year) |> 
+  select(-year)
+
+rm(sup_counts)
+
+enf_counts <- df |> 
+  filter(!is.na(year)) |> 
+  filter(!is.na(full)) |> 
+  filter(page == "enf") |> 
+  group_by(year, vol_sec) |> 
+  tally(name = "enf_count")
+
+final <- left_join(enf_counts, sup_full, by = "vol_sec")
+
+final <- final |> 
+  mutate(
+    year = as.integer(year)
+    , sup_year = as.integer(sup_year)) |> 
+  
+  filter(sup_year <= year) |> 
+  mutate(years_before = year - sup_year) |> 
+  mutate(sup_count_scaled = sup_count - mean(sup_count) / sd(sup_count)
+         , enf_count_scaled = enf_count - mean(enf_count) / sd(enf_count)
+         , year_cnt = max(year) - year 
+         , years_before = 1 - (years_before / max(years_before)))
+
+model <- brms::brm(
+  
+  enf_count ~  (1|vol_sec)
+  , data = final
+  , family = stats::poisson()
+  , chains = 4 
+  , cores = 4
+  , iter = 2000) 
+
+
+model_sup.1 <- brms::brm(
+  enf_count ~ sup_count_scaled * years_before + (1|vol_sec)
+  , data = final
+  , family = stats::poisson()
+  , chains = 4
+  , cores = 4
+  , iter = 2000) 
+
+
+hist(final$years_before)
+
+```
+
+
+
+
